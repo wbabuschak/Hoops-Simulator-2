@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+
+<head>
+</head>
+
+
+<script src="league.js"></script>
+<script>
+    function navigate(destination){
+        window.location.hash = destination;
+        route();
+    }
+    function route(){
+        const hash = decodeURIComponent(window.location.hash.substring(1));
+        if (hash == "CREATELEAGUE"){
+            showPage("createLeague");
+        }   else if (hash == "EDITLEAGUE"){
+            showPage("editLeague");
+        }   else if (hash && league && league.teams.some(t => "TEAM-" + t.name == hash)) {
+            showPage("teamView",hash);
+        }   else {
+            showPage("home");
+        }
+    }
+    window.onhashchange = route;
+    window.onload = function(){
+        loadLeague();
+        route();
+    };
+</script>
+
+<script>
+    let league;
+    function saveLeague(){
+       if (!league) return;
+       localStorage.setItem("currentLeague", JSON.stringify(league));
+    }
+    function loadLeague(){
+        const data = localStorage.getItem("currentLeague");
+        if (data) {
+            const obj = JSON.parse(data);
+            league = Object.assign(new League(), obj)
+        }
+    }
+</script>
+
+<script>
+    function showPage(type, hash = ""){
+        document.getElementById("home").style.display = "none";
+        document.getElementById("create").style.display = "none";
+        document.getElementById("edit").style.display = "none";
+        document.getElementById("teamView").style.display = "none";
+        switch (type){
+            case "home":
+                showHome();
+                break;
+            case "createLeague":
+                showCreateLeague();
+                break;
+            case "editLeague":
+                showEditLeague();
+                break;
+            case "teamView":
+                showTeamView(hash);
+                break;
+        }
+    }
+
+    function showHome(){
+        document.getElementById("home").style.display = "block";
+        if (!leagueFound()){
+            document.getElementById("txtLeagueName").innerText = "No League Found";
+            document.getElementById("btnEditLeagueNav").disabled = true;
+        } else {
+            document.getElementById("txtLeagueName").innerText = league.name + " (season " + league.seasonNo + ")";
+            document.getElementById("btnEditLeagueNav").disabled = false;
+            showTeams();
+        }
+    }
+    
+    function showCreateLeague(){
+        document.getElementById("create").style.display = "block";
+    }
+
+    function showEditLeague(){
+        document.getElementById("edit").style.display = "block";
+
+        document.getElementById("leagueNameEdit").value = league.name;
+        document.getElementById("seasonLengthEdit").value = league.seasonLength;
+        document.getElementById("noTeamsEdit").value = league.noTeams;
+    }
+
+    function showTeamView(hash){
+        if (!leagueFound()){
+            showHome();
+            return;
+        }
+        document.getElementById("teamView").style.display = "block";
+        const teamName = decodeURIComponent(hash.replace(/^TEAM-/,""));
+        document.getElementById("lblTeamNameTeamView").innerHTML = teamName;
+
+        const team = league.teams.find(t => t.name == teamName);
+        showCurrentRoster(team);
+    }
+
+    function showTeams() {
+        const container = document.getElementById("teamsContainer");
+        const tbody = document.getElementById("teamsTable").querySelector("tbody");
+        tbody.innerHTML = "";
+
+        league.teams.forEach(
+            team => {
+                const row = document.createElement("tr");
+                const nameCell = document.createElement("td");
+
+                const link = document.createElement("a");
+                link.href = "#TEAM-" + encodeURIComponent(team.name);
+                link.textContent = team.name;
+                nameCell.appendChild(link);
+
+                row.appendChild(nameCell);
+
+                const divisionCell = document.createElement("td");
+                divisionCell.textContent = team.division;
+                row.appendChild(divisionCell);
+
+                tbody.appendChild(row);
+            }
+        )
+        container.style.display = "block";
+    }
+
+     function showCurrentRoster(team) {
+        const container = document.getElementById("rosterContainer");
+        const tbody = document.getElementById("rosterTable").querySelector("tbody");
+        tbody.innerHTML = "";
+
+        team.roster.players.forEach(
+            player => {
+                const row = document.createElement("tr");
+                const nameCell = document.createElement("td");
+
+                const link = document.createElement("a");
+                link.href = "#PLAYER-" + encodeURIComponent(player.id);
+                link.textContent = player.name;
+                nameCell.appendChild(link);
+
+                row.appendChild(nameCell);
+
+                const minutesCell = document.createElement("td");
+                minutesCell.textContent = league.seasonPlayerTotal(player.id,"minutes");
+                row.appendChild(minutesCell);
+
+                const pointsCell = document.createElement("td");
+                pointsCell.textContent = league.seasonPlayerTotal(player.id,"points");
+                row.appendChild(pointsCell)
+
+                const reboundsCell = document.createElement("td");
+                reboundsCell.textContent = league.seasonPlayerTotal(player.id,"rebounds");
+                row.appendChild(reboundsCell)
+
+                const assistsCell = document.createElement("td");
+                assistsCell.textContent = league.seasonPlayerTotal(player.id,"assists");
+                row.appendChild(assistsCell)
+
+                const stealsCell = document.createElement("td");
+                stealsCell.textContent = league.seasonPlayerTotal(player.id,"steals");
+                row.appendChild(stealsCell)
+
+                const blocksCell = document.createElement("td");
+                blocksCell.textContent = league.seasonPlayerTotal(player.id,"blocks");
+                row.appendChild(blocksCell)
+
+                const turnoversCell = document.createElement("td");
+                turnoversCell.textContent = league.seasonPlayerTotal(player.id,"turnovers");
+                row.appendChild(turnoversCell)
+
+                tbody.appendChild(row);
+            }
+        )
+        container.style.display = "block";
+    }
+</script>
+
+<script>
+    function createLeague(){
+
+        const form = document.getElementById("formLeagueCreate");
+
+        const name = form.elements.leagueName.value;
+        const seasonLength = parseInt(form.elements.seasonLength.value);
+        const noTeams = parseInt(form.elements.noTeams.value);
+        if (name && seasonLength && noTeams){
+            league = new League(noTeams);
+
+            league.seasonLength = seasonLength;
+            league.name = name;
+            league.noTeams = noTeams;
+            league.seasonNo = 1;
+
+            saveLeague();
+            navigate('');
+        } else {
+            alert("Failed to create league.")
+        }
+        
+    }
+
+    function editLeague(){
+        const form = document.getElementById("formLeagueEdit");
+
+        const name = form.elements.leagueName.value;
+        const seasonLength = parseInt(form.elements.seasonLength.value);
+        const noTeams = parseInt(form.elements.noTeams.value);
+        if (name && seasonLength && noTeams){
+
+            league.seasonLength = seasonLength;
+            league.name = name;
+            league.noTeams = noTeams;
+
+            saveLeague();
+            navigate('');
+        } else {
+            alert("Failed to edit league.")
+        }
+    }
+
+    function leagueFound(){
+        return league != null;
+    }
+    
+</script>
+
+
+<body>
+    <h1>Hoops Simulator 2</h1>
+    <h2>By William Babuschak</h2>
+
+    <div id="home">
+        <p id="txtLeagueName"></p>
+        <button id="btnEditLeagueNav" onclick="navigate('EDITLEAGUE')">Edit League</button><br>
+        <button id="btnCreateLeagueNav" onclick="navigate('CREATELEAGUE')">Create League</button>
+        <div id="teamsContainer" style ="display:none;">
+            <h3>Teams</h3>
+            <table id="teamsTable">
+                <thead>
+                    <tr>
+                        <th>Team Name</th>
+                        <th>Division</th>
+                    </tr>
+                </thead>
+                <tbody>
+
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="create">
+        <p>You are creating a new league</p>
+        <form id="formLeagueCreate">
+            <label for="league-name">League Name</label><br>
+            <input type="text" id="leagueName" name="leagueName"><br>
+            <label for="season-length">Season Length</label><br>
+            <input type="number" id="seasonLength" name="seasonLength" value="82"><br>
+            <label for="no-teams">Number of Teams</label><br>
+            <input type="number" id="noTeams" name="noTeams" value="12"><br>
+        </form>
+        <button id="btnCreateLeague" onclick="createLeague()">Create League</button><br>
+        <button id="btnHome" onclick="navigate('')">Go Home (abort)</button>
+    </div>
+
+    <div id="edit">
+        <p>You are editing your current league</p>
+        <form id="formLeagueEdit">
+            <label for="league-name">League Name</label><br>
+            <input type="text" id="leagueNameEdit" name="leagueName"><br>
+            <label for="season-length">Season Length</label><br>
+            <input type="number" id="seasonLengthEdit" name="seasonLength"><br>
+            <label for="no-teams">Number of Teams</label><br>
+            <input type="number" id="noTeamsEdit" name="noTeams"><br>
+        </form>
+
+        <button id="btnSubmitLeagueEdits" onclick="editLeague()">Submit League Edits</button><br>
+        <button id="btnHome" onclick="navigate('')">Go Home (abort)</button>
+    </div>
+
+    <div id="teamView">
+        <h3 id="lblTeamNameTeamView"></h3>
+        <button id="btnHome" onclick="navigate('')">Go Home (abort)</button>
+        <h3 id="lblTeamStatusTeamView"></h3>
+        <div id="rosterContainer" style ="display:none;">
+            <h3>Roster (Current Season)</h3>
+            <table id="rosterTable">
+                <thead>
+                    <tr>
+                        <th>Player Name</th>
+                        <th>Minutes</th>
+                        <th>Points</th>
+                        <th>Rebounds</th>
+                        <th>Assists</th>
+                        <th>Steals</th>
+                        <th>Blocks</th>
+                        <th>Turnovers</th>
+                    </tr>
+                </thead>
+                <tbody>
+
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</body>
+
+</html>
