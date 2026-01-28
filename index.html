@@ -1,10 +1,14 @@
 <!DOCTYPE html>
 
 <head>
+    <title>
+        Pokemon Type Calculator
+    </title>
+    <link rel="icon" type="image/webp" href="icon.webp">
 </head>
 
 
-<script src="league.js"></script>
+<script src="Type.js"></script>
 <script>
     function navigate(destination){
         window.location.hash = destination;
@@ -24,22 +28,32 @@
     }
     window.onhashchange = route;
     window.onload = function(){
-        loadLeague();
+        loadTypes();
+        populateSelections();
         route();
     };
 </script>
 
 <script>
-    let league;
-    function saveLeague(){
-       if (!league) return;
-       localStorage.setItem("currentLeague", JSON.stringify(league));
+    let typeList;
+    function saveTypes(){
+       if (!typeList) return;
+        localStorage.setItem("typeList", JSON.stringify(typeList.map(
+            t => ({
+                name: t.name,
+                immune: t.immune,
+                resist: t.resist,
+                weakTo: t.weakTo
+            }))
+        ));
     }
-    function loadLeague(){
-        const data = localStorage.getItem("currentLeague");
+    function loadTypes(){
+        const data = localStorage.getItem("typeList");
         if (data) {
-            const obj = JSON.parse(data);
-            league = Object.assign(new League(), obj)
+            const arr = JSON.parse(data);
+            typeList = arr.map(obj => new Type(obj.name, obj.immune, obj.resist, obj.weakTo))
+        } else {
+            typeList = Type.defaultTypeList;
         }
     }
 </script>
@@ -48,11 +62,10 @@
     function showPage(type, hash = ""){
         document.getElementById("home").style.display = "none";
         document.getElementById("create").style.display = "none";
-        document.getElementById("edit").style.display = "none";
-        document.getElementById("teamView").style.display = "none";
         switch (type){
             case "home":
                 showHome();
+                showCreateType();
                 break;
             case "createLeague":
                 showCreateLeague();
@@ -68,26 +81,11 @@
 
     function showHome(){
         document.getElementById("home").style.display = "block";
-        if (!leagueFound()){
-            document.getElementById("txtLeagueName").innerText = "No League Found";
-            document.getElementById("btnEditLeagueNav").disabled = true;
-        } else {
-            document.getElementById("txtLeagueName").innerText = league.name + " (season " + league.seasonNo + ")";
-            document.getElementById("btnEditLeagueNav").disabled = false;
-            showTeams();
-        }
+        showTypeChart();
     }
     
-    function showCreateLeague(){
+    function showCreateType(){
         document.getElementById("create").style.display = "block";
-    }
-
-    function showEditLeague(){
-        document.getElementById("edit").style.display = "block";
-
-        document.getElementById("leagueNameEdit").value = league.name;
-        document.getElementById("seasonLengthEdit").value = league.seasonLength;
-        document.getElementById("noTeamsEdit").value = league.noTeams;
     }
 
     function showTeamView(hash){
@@ -103,26 +101,85 @@
         showCurrentRoster(team);
     }
 
-    function showTeams() {
-        const container = document.getElementById("teamsContainer");
-        const tbody = document.getElementById("teamsTable").querySelector("tbody");
+    function showTypes() {
+        const container = document.getElementById("typesContainer");
+        const tbody = document.getElementById("typesTable").querySelector("tbody");
         tbody.innerHTML = "";
 
-        league.teams.forEach(
-            team => {
+        typeList.forEach(
+            type => {
                 const row = document.createElement("tr");
+
                 const nameCell = document.createElement("td");
-
-                const link = document.createElement("a");
-                link.href = "#TEAM-" + encodeURIComponent(team.name);
-                link.textContent = team.name;
-                nameCell.appendChild(link);
-
+                nameCell.textContent = type.name;
                 row.appendChild(nameCell);
 
-                const divisionCell = document.createElement("td");
-                divisionCell.textContent = team.division;
-                row.appendChild(divisionCell);
+                const immuneCell = document.createElement("td");
+                immuneCell.textContent = "[" + type.immune.join(" ") + "]";
+                row.appendChild(immuneCell);
+
+                const resistCell = document.createElement("td");
+                resistCell.textContent = "[" + type.resist.join(" ") + "]";
+                row.appendChild(resistCell);
+
+                const weakCell = document.createElement("td");
+                weakCell.textContent = "[" + type.weakTo.join(" ") + "]";
+                row.appendChild(weakCell);
+
+                tbody.appendChild(row);
+            }
+        )
+        container.style.display = "block";
+    }
+
+    function showTypeChart() {
+        const container = document.getElementById("typeChartContainer");
+        const tbody = document.getElementById("typeChart").querySelector("tbody");
+        const hrow = document.getElementById("typeChartHeader");
+
+        const blank = document.createElement("th");
+        hrow.appendChild(blank);
+
+        tbody.innerHTML = "";
+        typeList.forEach(
+            type => {
+                const column = document.createElement("th");
+                column.textContent = type.name;
+                hrow.appendChild(column);
+            }
+        )
+
+        typeList.forEach(
+            type => {
+                const row = document.createElement("tr");
+
+                const nameCell = document.createElement("td");
+                nameCell.textContent = type.name;
+                row.appendChild(nameCell);
+
+                typeList.forEach(
+                    tarType => {
+                        const multCell = document.createElement("td");
+                        let mult;
+                        let color = "#dadada";
+                        if (type.immune.includes(tarType.name)){
+                            mult = "0x";
+                            color = "#d1a0ff";
+                        } else if (type.resist.includes(tarType.name)){
+                            mult = "1/2x";
+                            color = "#a3ffa0";
+                        } else if (type.weakTo.includes(tarType.name)){
+                            mult = "2x";
+                            color = "#ffa0a0";
+                        } else {
+                            mult = "1x";
+                        }
+                        multCell.textContent = mult;
+                        multCell.style.backgroundColor = color;
+                        row.appendChild(multCell);
+                    }
+                )
+                
 
                 tbody.appendChild(row);
             }
@@ -183,27 +240,68 @@
 </script>
 
 <script>
-    function createLeague(){
+    function saveType(){
+        const form = document.getElementById("formTypeCreate");
+        const immuneSelect = document.getElementById("immuneSelect");
+        const resistSelect = document.getElementById("resistSelect");
+        const weaknessSelect = document.getElementById("weaknessSelect");
 
-        const form = document.getElementById("formLeagueCreate");
+        const name = form.elements.typeName.value.trim();
+        if (!name){
+            alert("Failed to create Type.")
+            return;
+        }
+        let type = new Type(name);
+        Array.from(immuneSelect.selectedOptions).map(opt => opt.value).forEach(immune => type.immune.push(immune));
+        Array.from(resistSelect.selectedOptions).map(opt => opt.value).forEach(resist => type.resist.push(resist));
+        Array.from(weaknessSelect.selectedOptions).map(opt => opt.value).forEach(weakTo => type.weakTo.push(weakTo));
 
-        const name = form.elements.leagueName.value;
-        const seasonLength = parseInt(form.elements.seasonLength.value);
-        const noTeams = parseInt(form.elements.noTeams.value);
-        if (name && seasonLength && noTeams){
-            league = new League(noTeams);
-
-            league.seasonLength = seasonLength;
-            league.name = name;
-            league.noTeams = noTeams;
-            league.seasonNo = 1;
-
-            saveLeague();
-            navigate('');
+        const oldIndex = typeList.indexOf(typeList.find(t => t.name == name));
+        if (oldIndex != -1){
+            typeList[oldIndex] = type;
         } else {
-            alert("Failed to create league.")
+            typeList.push(type);
+        }
+        saveTypes();
+        location.reload();
+        
+    }
+
+    function loadType(){
+        populateSelections();
+        const form = document.getElementById("formTypeCreate");
+        const immuneSelect = document.getElementById("immuneSelect");
+        const resistSelect = document.getElementById("resistSelect");
+        const weaknessSelect = document.getElementById("weaknessSelect");
+
+        const name = form.elements.typeName.value.trim();
+        const type = typeList.find(t => t.name == name);
+        if (!type){
+            alert("No existing type of that name")
+            return;
+        }
+        for (let option of immuneSelect.options) {
+            
+            console.log(immuneSelect.options);
+            option.selected = type.immune.includes(option.value);
+        }
+        for (let option of resistSelect.options) {
+            
+            console.log(resistSelect.options);
+            option.selected = type.resist.includes(option.value);
+        }
+        for (let option of weaknessSelect.options) {
+            
+            console.log(weaknessSelect.options);
+            option.selected = type.weakTo.includes(option.value);
         }
         
+    }
+
+    function resetTypes(){
+        typeList = Type.defaultTypeList;
+        saveTypes();
+        location.reload();
     }
 
     function editLeague(){
@@ -233,21 +331,34 @@
 
 
 <body>
-    <h1>Hoops Simulator 2</h1>
+    <h1>Pokemon Type Calculator</h1>
     <h2>By William Babuschak</h2>
-
+    </script>
     <div id="home">
         <p id="txtLeagueName"></p>
-        <button id="btnEditLeagueNav" onclick="navigate('EDITLEAGUE')">Edit League</button><br>
-        <button id="btnCreateLeagueNav" onclick="navigate('CREATELEAGUE')">Create League</button>
-        <div id="teamsContainer" style ="display:none;">
-            <h3>Teams</h3>
-            <table id="teamsTable">
+        <button id="btnResetTypes" onclick="resetTypes()">Reset Types</button><br>
+        <div id="typesContainer" style ="display:none;">
+            <h3>Types</h3>
+            <table id="typesTable">
                 <thead>
                     <tr>
-                        <th>Team Name</th>
-                        <th>Division</th>
+                        <th>Type Name</th>
+                        <th>Immunities</th>
+                        <th>Resistances</th>
+                        <th>Weaknesses</th>
                     </tr>
+                </thead>
+                <tbody>
+
+                </tbody>
+            </table>
+        </div>
+
+        <div id="typeChartContainer" style ="display:none;">
+            <h3>Type Chart</h3>
+            <table id="typeChart">
+                <thead>
+                    <tr id="typeChartHeader"></tr>
                 </thead>
                 <tbody>
 
@@ -257,59 +368,39 @@
     </div>
 
     <div id="create">
-        <p>You are creating a new league</p>
-        <form id="formLeagueCreate">
-            <label for="league-name">League Name</label><br>
-            <input type="text" id="leagueName" name="leagueName"><br>
-            <label for="season-length">Season Length</label><br>
-            <input type="number" id="seasonLength" name="seasonLength" value="82"><br>
-            <label for="no-teams">Number of Teams</label><br>
-            <input type="number" id="noTeams" name="noTeams" value="12"><br>
+        <form id="formTypeCreate" style="display:flex">
+            <label for="type-name">Type Name</label><br>
+            <input type="text" id="typeName" name="typeName" required><br>
+
+            <label for="type-immune">Immunities</label><br>
+            <select id="immuneSelect" name="immuneType" multiple></select><br>
+            
+            <label for="type-resist">Resistances</label><br>
+            <select id="resistSelect" name="resistType" multiple></select><br>
+
+            <label for="type-weakness">Weaknesses</label><br>
+            <select id="weaknessSelect" name="weaknessType" multiple></select><br>
+
+            <button id="btnSaveType" onclick="saveType()">Save Type</button><br>
         </form>
-        <button id="btnCreateLeague" onclick="createLeague()">Create League</button><br>
-        <button id="btnHome" onclick="navigate('')">Go Home (abort)</button>
+        <button id="btnLoadType" onclick="loadType()">Load Type</button><br>
     </div>
 
-    <div id="edit">
-        <p>You are editing your current league</p>
-        <form id="formLeagueEdit">
-            <label for="league-name">League Name</label><br>
-            <input type="text" id="leagueNameEdit" name="leagueName"><br>
-            <label for="season-length">Season Length</label><br>
-            <input type="number" id="seasonLengthEdit" name="seasonLength"><br>
-            <label for="no-teams">Number of Teams</label><br>
-            <input type="number" id="noTeamsEdit" name="noTeams"><br>
-        </form>
-
-        <button id="btnSubmitLeagueEdits" onclick="editLeague()">Submit League Edits</button><br>
-        <button id="btnHome" onclick="navigate('')">Go Home (abort)</button>
-    </div>
-
-    <div id="teamView">
-        <h3 id="lblTeamNameTeamView"></h3>
-        <button id="btnHome" onclick="navigate('')">Go Home (abort)</button>
-        <h3 id="lblTeamStatusTeamView"></h3>
-        <div id="rosterContainer" style ="display:none;">
-            <h3>Roster (Current Season)</h3>
-            <table id="rosterTable">
-                <thead>
-                    <tr>
-                        <th>Player Name</th>
-                        <th>Minutes</th>
-                        <th>Points</th>
-                        <th>Rebounds</th>
-                        <th>Assists</th>
-                        <th>Steals</th>
-                        <th>Blocks</th>
-                        <th>Turnovers</th>
-                    </tr>
-                </thead>
-                <tbody>
-
-                </tbody>
-            </table>
-        </div>
-    </div>
+    <script>
+        function populateSelections() {
+            ["immuneSelect","resistSelect","weaknessSelect"].forEach(id => {
+                document.getElementById(id).innerHTML = "";
+                typeList.forEach(type => {
+                    const option = document.createElement("option");
+                    option.value = type.name;
+                    option.textContent = type.name;
+                    document.getElementById(id).appendChild(option);
+                    
+                })
+                document.getElementById(id).size = document.getElementById(id).options.length;
+            });
+        }
+    </script>
 
 </body>
 
